@@ -5,6 +5,7 @@ import icon from '../../resources/pos.png?assets'
 import '../../electron/ipc/product'
 import '../../electron/ipc/transaction'
 import '../../electron/ipc/dashboard'
+import '../../electron/ipc/database'
 
 function createWindow() {
   // Create the browser window.

@@ -26,6 +26,9 @@ if (process.contextIsolated) {
       },
       dashboard: {
         getData: () => ipcRenderer.invoke('dashboard:getData')
+      },
+      database: {
+        backup: () => ipcRenderer.invoke('database:backup')
       }
     })
   } catch (error) {

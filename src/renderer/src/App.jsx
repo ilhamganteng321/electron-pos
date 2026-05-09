@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard'
 import Product from './pages/Product'
 import Transaction from './pages/Transaction'
 import Report from './pages/Report'
+import SettingsBackupPage from './pages/Settings'
 
 function App() {
   return (
@@ -15,6 +16,7 @@ function App() {
           <Route path="product" element={<Product />} />
           <Route path="transaction" element={<Transaction />} />
           <Route path="report" element={<Report />} />
+          <Route path="settings" element={<SettingsBackupPage />} />
         </Route>
       </Routes>
     </BrowserRouter>
