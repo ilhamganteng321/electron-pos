@@ -40,7 +40,7 @@ export function ProductSearch({ products, onAddToCart }) {
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3 max-h-100 overflow-y-auto pr-1">
         {filtered.map((product) => (
           <div
             key={product.id}

@@ -28,7 +28,15 @@ if (process.contextIsolated) {
         getData: () => ipcRenderer.invoke('dashboard:getData')
       },
       database: {
-        backup: () => ipcRenderer.invoke('database:backup')
+        backup: () => ipcRenderer.invoke('database:backup'),
+        restore: () => ipcRenderer.invoke('database:restore'),
+        getInfo: () => ipcRenderer.invoke('database:getInfo'),
+        clearAllData: () => ipcRenderer.invoke('database:clearAllData'),
+        reset: () => ipcRenderer.invoke('database:reset'),
+        vacuum: () => ipcRenderer.invoke('database:vacuum'),
+        checkIntegrity: () => ipcRenderer.invoke('database:checkIntegrity'),
+        getStatistics: () => ipcRenderer.invoke('database:getStatistics'),
+        exportSql: () => ipcRenderer.invoke('database:exportSql')
       }
     })
   } catch (error) {

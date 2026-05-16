@@ -47,7 +47,13 @@ export default function Product() {
       if (!res.success) throw new Error(res.error)
       return res.data
     },
-    staleTime: 1000 * 60 * 5
+    staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 30, // Cache disimpan 30 menit
+    refetchInterval: 15000, // Auto-refresh setiap 30 detik
+    refetchIntervalInBackground: true, // Tetap refresh meski tab tidak aktif
+    placeholderData: (previousData) => previousData, // Keep previous data while loading
+    retry: 2,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000)
   })
 
   const showToast = (msg, type = 'success') => {

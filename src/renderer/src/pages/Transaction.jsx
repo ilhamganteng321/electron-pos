@@ -8,6 +8,7 @@ import { TransactionForm } from '../components/transaction/Form'
 import { TransactionList } from '../components/transaction/List'
 import { Toast } from '../components/product/Toast'
 import { useQuery } from '@tanstack/react-query'
+import { ArrowPathIcon } from '@heroicons/react/24/outline'
 
 export default function Transaction() {
   const [activeTab, setActiveTab] = useState('new')
@@ -33,7 +34,13 @@ export default function Transaction() {
 
       return res.data || []
     },
-    staleTime: 1000 * 60 * 5
+    staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 30, // Cache disimpan 30 menit
+    refetchInterval: 15000, // Auto-refresh setiap 30 detik
+    refetchIntervalInBackground: true, // Tetap refresh meski tab tidak aktif
+    placeholderData: (previousData) => previousData, // Keep previous data while loading
+    retry: 2,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000)
   })
 
   const showToast = (msg, type = 'success') => {
@@ -76,12 +83,21 @@ export default function Transaction() {
   return (
     <div className="flex flex-col h-full min-h-0">
       {/* Header */}
+
       <div className="flex items-start justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-white tracking-tight">Transaksi</h1>
-
           <p className="text-white/40 text-sm mt-1">Kelola penjualan dan histori transaksi</p>
         </div>
+
+        <button
+          onClick={() => refetch()}
+          disabled={isLoading || isRefetching}
+          className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white/50 hover:text-white/80 hover:bg-white/8 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <ArrowPathIcon className={`w-4 h-4 ${isRefetching ? 'animate-spin' : ''}`} />
+          <span className="text-sm">Refresh</span>
+        </button>
       </div>
 
       {/* Stats */}

@@ -1,5 +1,4 @@
-// App.jsx atau main.jsx
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { HashRouter, Routes, Route } from 'react-router-dom'
 import Layout from './pages/Layout'
 import Dashboard from './pages/Dashboard'
 import Product from './pages/Product'
@@ -9,7 +8,7 @@ import SettingsBackupPage from './pages/Settings'
 
 function App() {
   return (
-    <BrowserRouter>
+    <HashRouter>
       <Routes>
         <Route path="/" element={<Layout />}>
           <Route index element={<Dashboard />} />
@@ -19,7 +18,7 @@ function App() {
           <Route path="settings" element={<SettingsBackupPage />} />
         </Route>
       </Routes>
-    </BrowserRouter>
+    </HashRouter>
   )
 }
 
