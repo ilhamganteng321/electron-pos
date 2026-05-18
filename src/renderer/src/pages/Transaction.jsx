@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   ShoppingBagIcon,
   ReceiptPercentIcon,
@@ -35,34 +35,56 @@ export default function Transaction() {
       return res.data || []
     },
     staleTime: 1000 * 60 * 5,
-    gcTime: 1000 * 60 * 30, // Cache disimpan 30 menit
-    refetchInterval: 15000, // Auto-refresh setiap 30 detik
-    refetchIntervalInBackground: true, // Tetap refresh meski tab tidak aktif
-    placeholderData: (previousData) => previousData, // Keep previous data while loading
+    gcTime: 1000 * 60 * 30,
+    refetchInterval: 15000,
+    refetchIntervalInBackground: true,
+    placeholderData: (previousData) => previousData,
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000)
   })
 
-  const showToast = (msg, type = 'success') => {
-    setToast({
-      visible: true,
-      msg,
-      type
-    })
+  // ─── Keyboard Shortcuts ──────────────────────────────────────────────────
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Ctrl + T → Tab Transaksi Baru
+      if (e.ctrlKey && e.key === 't') {
+        e.preventDefault()
+        setActiveTab('new')
+        return
+      }
 
+      // Ctrl + H → Tab Riwayat
+      if (e.ctrlKey && e.key === 'h') {
+        e.preventDefault()
+        setActiveTab('history')
+        return
+      }
+
+      // Ctrl + F → Fokus Pencarian Produk (di-handle oleh TransactionForm via event)
+      // Emit custom event agar bisa ditangkap oleh child component
+      if (e.ctrlKey && e.key === 'f') {
+        e.preventDefault()
+        if (activeTab !== 'new') setActiveTab('new')
+        window.dispatchEvent(new CustomEvent('transaction:focus-search'))
+        return
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [activeTab])
+
+  // ─── Handlers ────────────────────────────────────────────────────────────
+  const showToast = (msg, type = 'success') => {
+    setToast({ visible: true, msg, type })
     setTimeout(() => {
-      setToast((prev) => ({
-        ...prev,
-        visible: false
-      }))
+      setToast((prev) => ({ ...prev, visible: false }))
     }, 3000)
   }
 
   const handleTransactionSuccess = async () => {
     showToast('Transaksi berhasil! ✓')
-
     await refetch()
-
     setActiveTab('history')
   }
 
@@ -76,14 +98,12 @@ export default function Transaction() {
   const todayTransactions = transactions.filter((trx) => {
     const today = new Date().toDateString()
     const trxDate = new Date(trx.created_at * 1000).toDateString()
-
     return trxDate === today
   }).length
 
   return (
     <div className="flex flex-col h-full min-h-0">
       {/* Header */}
-
       <div className="flex items-start justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-white tracking-tight">Transaksi</h1>
@@ -105,20 +125,16 @@ export default function Transaction() {
         <div className="bg-white/3 border border-white/6 rounded-2xl p-4">
           <div className="flex items-center gap-2 mb-2">
             <ReceiptPercentIcon className="w-4 h-4 text-emerald-400" />
-
             <p className="text-white/40 text-xs uppercase tracking-widest">Total Transaksi</p>
           </div>
-
           <p className="text-white text-2xl font-bold">{totalTransactions}</p>
         </div>
 
         <div className="bg-white/3 border border-white/6 rounded-2xl p-4">
           <div className="flex items-center gap-2 mb-2">
             <CurrencyDollarIcon className="w-4 h-4 text-violet-400" />
-
             <p className="text-white/40 text-xs uppercase tracking-widest">Total Pendapatan</p>
           </div>
-
           <p className="text-white text-xl font-bold truncate">
             {new Intl.NumberFormat('id-ID', {
               style: 'currency',
@@ -131,39 +147,69 @@ export default function Transaction() {
         <div className="bg-white/3 border border-white/6 rounded-2xl p-4">
           <div className="flex items-center gap-2 mb-2">
             <ShoppingBagIcon className="w-4 h-4 text-amber-400" />
-
             <p className="text-white/40 text-xs uppercase tracking-widest">Transaksi Hari Ini</p>
           </div>
-
           <p className="text-white text-2xl font-bold">{todayTransactions}</p>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 mb-4 border-b border-white/6">
-        <button
-          onClick={() => setActiveTab('new')}
-          className={`px-4 py-2 text-sm font-medium transition-all relative ${
-            activeTab === 'new' ? 'text-violet-400' : 'text-white/40 hover:text-white/60'
-          }`}
-        >
-          Transaksi Baru
-          {activeTab === 'new' && (
-            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-linear-to-r from-violet-500 to-fuchsia-500 rounded-full" />
-          )}
-        </button>
+      <div className="flex items-end justify-between mb-4 border-b border-white/6">
+        <div className="flex gap-2">
+          {/* Tab: Transaksi Baru — Ctrl+T */}
+          <button
+            onClick={() => setActiveTab('new')}
+            title="Transaksi Baru (Ctrl+T)"
+            className={`px-4 py-2 text-sm font-medium transition-all relative flex items-center gap-2 ${
+              activeTab === 'new' ? 'text-violet-400' : 'text-white/40 hover:text-white/60'
+            }`}
+          >
+            Transaksi Baru
+            <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1 py-0.5 text-[10px] font-mono rounded bg-white/6 text-white/25 border border-white/8">
+              Ctrl+T
+            </kbd>
+            {activeTab === 'new' && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-linear-to-r from-violet-500 to-fuchsia-500 rounded-full" />
+            )}
+          </button>
 
-        <button
-          onClick={() => setActiveTab('history')}
-          className={`px-4 py-2 text-sm font-medium transition-all relative ${
-            activeTab === 'history' ? 'text-violet-400' : 'text-white/40 hover:text-white/60'
-          }`}
-        >
-          Riwayat Transaksi
-          {activeTab === 'history' && (
-            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-linear-to-r from-violet-500 to-fuchsia-500 rounded-full" />
-          )}
-        </button>
+          {/* Tab: Riwayat — Ctrl+H */}
+          <button
+            onClick={() => setActiveTab('history')}
+            title="Riwayat Transaksi (Ctrl+H)"
+            className={`px-4 py-2 text-sm font-medium transition-all relative flex items-center gap-2 ${
+              activeTab === 'history' ? 'text-violet-400' : 'text-white/40 hover:text-white/60'
+            }`}
+          >
+            Riwayat Transaksi
+            <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1 py-0.5 text-[10px] font-mono rounded bg-white/6 text-white/25 border border-white/8">
+              Ctrl+H
+            </kbd>
+            {activeTab === 'history' && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-linear-to-r from-violet-500 to-fuchsia-500 rounded-full" />
+            )}
+          </button>
+        </div>
+
+        {/* Shortcut legend — kanan tab bar */}
+        <div className="hidden sm:flex items-center gap-3 pb-2 text-white/20 text-[10px]">
+          {[
+            { keys: ['Ctrl', 'F'], label: 'Cari Produk' },
+            { keys: ['Esc'], label: 'Tutup Modal' }
+          ].map(({ keys, label }) => (
+            <span key={label} className="flex items-center gap-1">
+              {keys.map((k) => (
+                <kbd
+                  key={k}
+                  className="px-1 py-0.5 font-mono rounded bg-white/5 border border-white/8"
+                >
+                  {k}
+                </kbd>
+              ))}
+              <span className="ml-0.5">{label}</span>
+            </span>
+          ))}
+        </div>
       </div>
 
       {/* Content */}

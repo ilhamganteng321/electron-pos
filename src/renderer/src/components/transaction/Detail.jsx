@@ -25,81 +25,268 @@ export function TransactionDetail({ open, transaction, onClose }) {
     })
   }
 
-  const handlePrint = () => {
-    window.print()
+  // ─── Build receipt HTML string ───────────────────────────────────────────
+  const buildReceiptHTML = () => {
+    const itemsHTML = (transaction.items || [])
+      .map(
+        (item) => `
+      <div class="item-line">
+        <div class="item-name">${item.product_name || `Produk #${item.product_id}`}</div>
+        <div class="item-detail">
+          <span class="item-qty">${item.qty} x ${fmt(item.price)}</span>
+          <span class="item-subtotal">${fmt(item.subtotal)}</span>
+        </div>
+      </div>
+    `
+      )
+      .join('')
+
+    return `
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<title>Struk Pembayaran</title>
+
+<style>
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
   }
 
-  // Tambahkan CSS global khusus print di sini
-  const printStyles = (
-    <style
-      dangerouslySetInnerHTML={{
-        __html: `
-      @media print {
+  body {
+    width: 80mm;
+    margin: 0 auto;
+    padding: 8px 6px;
+    font-family: 'Courier New', 'Lucida Sans Typewriter', monospace;
+    font-size: 11px;
+    line-height: 1.3;
+    color: #000;
+    background: #fff;
+  }
 
-        html, body {
-          background: black !important;
-          margin: 0 !important;
-          padding: 0 !important;
-        }
+  /* Header */
+  .store-name {
+    text-align: center;
+    font-size: 16px;
+    font-weight: bold;
+    margin-bottom: 4px;
+    letter-spacing: 1px;
+  }
 
-        /* sembunyikan backdrop dan tombol */
-        .no-print {
-          display: none !important;
-        }
+  .thanks {
+    text-align: center;
+    font-size: 10px;
+    margin-bottom: 8px;
+    color: #333;
+  }
 
-        /* hilangkan semua overlay/headless ui */
-        [data-headlessui-state] {
-          position: static !important;
-          transform: none !important;
-          inset: auto !important;
-        }
+  /* Divider */
+  .divider {
+    border-top: 1px dashed #000;
+    margin: 6px 0;
+  }
 
-        /* tampilkan area print */
-        .print-area {
-          display: block !important;
-          position: static !important;
-          width: 100% !important;
-          max-width: 100% !important;
-          height: auto !important;
-          overflow: visible !important;
+  .divider-double {
+    border-top: 1px solid #000;
+    margin: 6px 0;
+  }
 
-          background: white !important;
-          color: black !important;
+  /* Info Row */
+  .info-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 3px;
+  }
 
-          border: none !important;
-          box-shadow: none !important;
-        }
+  .info-label {
+    font-weight: normal;
+  }
 
-        .print-area * {
-          color: black !important;
-          background: transparent !important;
-          border-color: #ddd !important;
-          box-shadow: none !important;
-        }
+  .info-value {
+    font-weight: normal;
+  }
 
-        /* sembunyikan backdrop */
-        .fixed.inset-0.bg-black\\/70 {
-          display: none !important;
-        }
+  /* Items */
+  .item-line {
+    margin-bottom: 8px;
+  }
 
-        button {
-          display: none !important;
-        }
+  .item-name {
+    font-weight: bold;
+    margin-bottom: 2px;
+    text-transform: uppercase;
+    font-size: 11px;
+  }
 
-        @page {
-          size: auto;
-          margin: 10mm;
-        }
-      }
-    `
-      }}
-    />
-  )
+  .item-detail {
+    display: flex;
+    justify-content: space-between;
+    padding-left: 4px;
+  }
+
+  .item-qty {
+    font-size: 10px;
+  }
+
+  .item-subtotal {
+    font-weight: normal;
+  }
+
+  /* Summary */
+  .summary-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 4px;
+  }
+
+  .summary-row.total {
+    margin-top: 4px;
+    padding-top: 4px;
+    border-top: 1px solid #000;
+    font-weight: bold;
+    font-size: 12px;
+  }
+
+  .summary-row.return {
+    font-weight: bold;
+    font-size: 12px;
+  }
+
+  /* Footer */
+  .footer {
+    text-align: center;
+    margin-top: 12px;
+    font-size: 9px;
+    color: #555;
+  }
+
+  .print-time {
+    text-align: center;
+    font-size: 9px;
+    margin-top: 6px;
+    color: #555;
+  }
+
+  /* Print optimization */
+  @media print {
+    body {
+      margin: 0;
+      padding: 8px 6px;
+    }
+
+    .no-print {
+      display: none;
+    }
+  }
+</style>
+</head>
+
+<body>
+  <!-- Header -->
+  <div class="store-name">TOKO POS</div>
+  <div class="thanks">Terima kasih telah berbelanja</div>
+
+  <div class="divider-double"></div>
+
+  <!-- Transaction Info -->
+  <div class="info-row">
+    <span class="info-label">No</span>
+    <span class="info-value">#${transaction.id || transaction.invoice_no || 'N/A'}</span>
+  </div>
+
+  <div class="info-row">
+    <span class="info-label">Tanggal</span>
+    <span class="info-value">${fmtDate(transaction.created_at)}</span>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- Items List -->
+  ${itemsHTML}
+
+  <div class="divider"></div>
+
+  <!-- Payment Summary -->
+  <div class="summary-row">
+    <span>Total</span>
+    <span>${fmt(transaction.total)}</span>
+  </div>
+
+  <div class="summary-row">
+    <span>Bayar</span>
+    <span>${fmt(transaction.paid)}</span>
+  </div>
+
+  <div class="summary-row return">
+    <span>Kembali</span>
+    <span>${fmt(transaction.change)}</span>
+  </div>
+
+  <div class="divider-double"></div>
+
+  <!-- Footer -->
+  <div class="footer">
+    Dicetak: ${new Date().toLocaleString('id-ID', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    })}
+  </div>
+
+  <script>
+    // Auto print when window loads
+    window.onload = function() {
+      setTimeout(function() {
+        window.print();
+      }, 200);
+    };
+
+    // Close window after print (optional)
+    window.onafterprint = function() {
+      setTimeout(function() {
+        window.close();
+      }, 500);
+    };
+  </script>
+</body>
+</html>
+`
+  }
+
+  // ─── Open dedicated print window ────────────────────────────────────────
+  const handlePrint = () => {
+    const html = buildReceiptHTML()
+
+    const blob = new Blob([html], {
+      type: 'text/html'
+    })
+
+    const url = URL.createObjectURL(blob)
+
+    const printWindow = window.open(
+      url,
+      '_blank',
+      'width=450,height=700,menubar=no,toolbar=no,location=no'
+    )
+
+    if (!printWindow) {
+      alert('Popup diblokir. Harap izinkan popup untuk mencetak struk.')
+      return
+    }
+
+    printWindow.onload = () => {
+      URL.revokeObjectURL(url)
+    }
+  }
 
   return (
     <Transition show={open} as={Fragment}>
       <Dialog onClose={onClose} className="relative z-50">
-        {printStyles}
         <TransitionChild
           as={Fragment}
           enter="ease-out duration-200"
@@ -122,7 +309,7 @@ export function TransactionDetail({ open, transaction, onClose }) {
             leaveFrom="opacity-100 scale-100"
             leaveTo="opacity-0 scale-95"
           >
-            <DialogPanel className="print-area w-full max-w-2xl bg-[#1a1a23] border border-white/8 rounded-2xl shadow-2xl max-h-[90vh] overflow-auto">
+            <DialogPanel className="w-full max-w-2xl bg-[#1a1a23] border border-white/8 rounded-2xl shadow-2xl max-h-[90vh] overflow-auto">
               <div className="sticky top-0 bg-[#1a1a23] border-b border-white/6 px-6 py-5 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-xl bg-violet-500/30 border border-violet-500/20 flex items-center justify-center">
@@ -135,13 +322,14 @@ export function TransactionDetail({ open, transaction, onClose }) {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={handlePrint}
-                    className="text-white/30 hover:text-white p-1.5 rounded-lg hover:bg-white/10 no-print"
+                    title="Cetak Struk"
+                    className="text-white/30 hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition-colors"
                   >
                     <PrinterIcon className="w-4 h-4" />
                   </button>
                   <button
                     onClick={onClose}
-                    className="text-white/30 hover:text-white p-1.5 rounded-lg hover:bg-white/10"
+                    className="text-white/30 hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition-colors"
                   >
                     <XMarkIcon className="w-4 h-4" />
                   </button>

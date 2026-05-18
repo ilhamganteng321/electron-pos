@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   PlusIcon,
   MagnifyingGlassIcon,
@@ -28,6 +28,7 @@ const fmtDate = (ts) =>
     month: 'short',
     year: 'numeric'
   })
+
 // ─── Main Component ──────────────────────────────────────────────────────────
 export default function Product() {
   const [search, setSearch] = useState('')
@@ -35,6 +36,8 @@ export default function Product() {
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState(null)
   const [toast, setToast] = useState({ visible: false, msg: '', type: 'success' })
+  const searchInputRef = useRef(null)
+
   const {
     data: products = [],
     isLoading,
@@ -48,14 +51,55 @@ export default function Product() {
       return res.data
     },
     staleTime: 1000 * 60 * 5,
-    gcTime: 1000 * 60 * 30, // Cache disimpan 30 menit
-    refetchInterval: 15000, // Auto-refresh setiap 30 detik
-    refetchIntervalInBackground: true, // Tetap refresh meski tab tidak aktif
-    placeholderData: (previousData) => previousData, // Keep previous data while loading
+    gcTime: 1000 * 60 * 30,
+    refetchInterval: 15000,
+    refetchIntervalInBackground: true,
+    placeholderData: (previousData) => previousData,
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000)
   })
 
+  // ─── Keyboard Shortcuts ──────────────────────────────────────────────────
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      const tag = document.activeElement?.tagName?.toLowerCase()
+      const isTyping =
+        tag === 'input' || tag === 'textarea' || document.activeElement?.isContentEditable
+
+      // Ctrl + N → Tambah Produk
+      if (e.ctrlKey && e.key === 'n') {
+        e.preventDefault()
+        setAddModalOpen(true)
+        return
+      }
+
+      // Ctrl + F → Fokus Pencarian
+      if (e.ctrlKey && e.key === 'f') {
+        e.preventDefault()
+        searchInputRef.current?.focus()
+        searchInputRef.current?.select()
+        return
+      }
+
+      // R → Refresh Data (hanya jika tidak sedang mengetik)
+      if (e.key === 'r' && !e.ctrlKey && !e.altKey && !e.metaKey && !isTyping) {
+        e.preventDefault()
+        refetch()
+        return
+      }
+
+      // Escape → Tutup modal / clear pencarian
+      if (e.key === 'Escape' && !addModalOpen && !editModalOpen && search) {
+        setSearch('')
+        return
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [addModalOpen, editModalOpen, search, refetch])
+
+  // ─── Handlers ────────────────────────────────────────────────────────────
   const showToast = (msg, type = 'success') => {
     setToast({ visible: true, msg, type })
     setTimeout(() => setToast((p) => ({ ...p, visible: false })), 3000)
@@ -95,12 +139,17 @@ export default function Product() {
             {isLoading ? 'Memuat data...' : `${products.length} produk terdaftar`}
           </p>
         </div>
+        {/* Tambah Produk — tooltip hint Ctrl+N */}
         <button
           onClick={() => setAddModalOpen(true)}
+          title="Tambah Produk (Ctrl+N)"
           className="flex items-center gap-2 px-4 py-2.5 bg-linear-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white text-sm font-semibold rounded-xl transition-all shadow-lg shadow-violet-500/20 active:scale-95"
         >
           <PlusIcon className="w-4 h-4" />
           Tambah Produk
+          <kbd className="ml-1 hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-mono rounded bg-white/10 text-white/50 border border-white/10">
+            Ctrl+N
+          </kbd>
         </button>
       </div>
 
@@ -126,22 +175,42 @@ export default function Product() {
       <div className="flex-1 bg-white/3 border border-white/6 rounded-2xl overflow-hidden flex flex-col min-h-0">
         {/* Table Toolbar */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/6">
+          {/* Search — Ctrl+F */}
           <div className="relative">
             <MagnifyingGlassIcon className="w-4 h-4 text-white/25 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
+              ref={searchInputRef}
               type="text"
-              placeholder="Cari produk..."
+              placeholder="Cari produk…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="bg-white/4 border border-white/6 rounded-xl pl-9 pr-4 py-2 text-sm text-white/70 placeholder-white/20 outline-none focus:border-violet-500/40 focus:bg-white/[0.07] transition-all w-60"
+              title="Fokus Pencarian (Ctrl+F)"
+              className="bg-white/4 border border-white/6 rounded-xl pl-9 pr-20 py-2 text-sm text-white/70 placeholder-white/20 outline-none focus:border-violet-500/40 focus:bg-white/[0.07] transition-all w-64"
             />
+            {/* Shortcut hint inside input */}
+            {search === '' && (
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+                <kbd className="px-1 py-0.5 text-[10px] font-mono rounded bg-white/8 text-white/25 border border-white/8">
+                  Ctrl
+                </kbd>
+                <kbd className="px-1 py-0.5 text-[10px] font-mono rounded bg-white/8 text-white/25 border border-white/8">
+                  F
+                </kbd>
+              </span>
+            )}
           </div>
+
+          {/* Refresh — R */}
           <button
-            onClick={() => isRefetching}
+            onClick={() => refetch()}
+            title="Refresh Data (R)"
             className="flex items-center gap-1.5 text-white/30 hover:text-white text-xs px-3 py-2 rounded-xl hover:bg-white/5 transition-colors"
           >
             <ArrowPathIcon className={`w-3.5 h-3.5 ${isRefetching ? 'animate-spin' : ''}`} />
             Refresh
+            <kbd className="ml-0.5 px-1 py-0.5 text-[10px] font-mono rounded bg-white/8 text-white/25 border border-white/8">
+              R
+            </kbd>
           </button>
         </div>
 
@@ -223,11 +292,31 @@ export default function Product() {
 
         {/* Footer count */}
         {!isLoading && filtered.length > 0 && (
-          <div className="px-5 py-3 border-t border-white/5">
+          <div className="px-5 py-3 border-t border-white/5 flex items-center justify-between">
             <p className="text-white/25 text-xs">
               Menampilkan <span className="text-white/50 font-semibold">{filtered.length}</span>{' '}
               dari <span className="text-white/50 font-semibold">{products.length}</span> produk
             </p>
+            {/* Shortcut legend */}
+            <div className="hidden sm:flex items-center gap-3 text-white/20 text-[10px]">
+              {[
+                { keys: ['Ctrl', 'N'], label: 'Tambah' },
+                { keys: ['Ctrl', 'F'], label: 'Cari' },
+                { keys: ['R'], label: 'Refresh' }
+              ].map(({ keys, label }) => (
+                <span key={label} className="flex items-center gap-1">
+                  {keys.map((k) => (
+                    <kbd
+                      key={k}
+                      className="px-1 py-0.5 font-mono rounded bg-white/5 border border-white/8"
+                    >
+                      {k}
+                    </kbd>
+                  ))}
+                  <span className="ml-0.5">{label}</span>
+                </span>
+              ))}
+            </div>
           </div>
         )}
       </div>

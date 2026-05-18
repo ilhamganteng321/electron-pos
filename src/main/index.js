@@ -23,13 +23,36 @@ function createWindow() {
     }
   })
 
-  mainWindow.on('ready-to-show', () => {
-    mainWindow.show()
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    // Izinkan popup print blob
+    if (url.startsWith('blob:')) {
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: {
+          width: 420,
+          height: 620,
+          autoHideMenuBar: true,
+          resizable: false,
+          minimizable: false,
+          maximizable: false,
+          backgroundColor: '#ffffff',
+          title: 'Cetak Struk',
+          webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true
+          }
+        }
+      }
+    }
+
+    // URL luar buka browser
+    shell.openExternal(url)
+
+    return { action: 'deny' }
   })
 
-  mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url)
-    return { action: 'deny' }
+  mainWindow.on('ready-to-show', () => {
+    mainWindow.show()
   })
 
   // HMR for renderer base on electron-vite cli.
