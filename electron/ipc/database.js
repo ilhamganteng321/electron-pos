@@ -2,6 +2,7 @@
 import { ipcMain, dialog } from 'electron'
 import fs from 'fs'
 import { closeDatabase, initDatabase, dbPath, getDb } from '../db'
+import * as XLSX from 'xlsx'
 
 /**
  * 💾 BACKUP DATABASE
@@ -431,3 +432,368 @@ ipcMain.handle('database:exportSql', async () => {
     }
   }
 })
+
+ipcMain.handle('database:exportCsv', async (event, { tableName } = {}) => {
+  try {
+    const db = getDb()
+
+    // If no specific table, export all tables as separate files or combined
+    const tables = tableName
+      ? [{ name: tableName }]
+      : await db.all(`
+        SELECT name FROM sqlite_master
+        WHERE type='table' AND name NOT LIKE 'sqlite_%'
+      `)
+
+    const { filePath } = await dialog.showSaveDialog({
+      title: 'Export to CSV',
+      defaultPath: `export-${tableName || 'all'}-${Date.now()}.csv`,
+      filters: [{ name: 'CSV File', extensions: ['csv'] }]
+    })
+
+    if (!filePath) {
+      return { success: false, message: 'Export dibatalkan' }
+    }
+
+    let allData = []
+
+    for (const table of tables) {
+      const data = await db.all(`SELECT * FROM ${table.name}`)
+
+      if (tableName) {
+        allData = data
+      } else {
+        // Add table name as column
+        data.forEach((row) => {
+          row._table_name = table.name
+          allData.push(row)
+        })
+      }
+    }
+
+    // Convert to CSV
+    const csv = convertToCSV(allData)
+    fs.writeFileSync(filePath, csv, 'utf-8')
+
+    return {
+      success: true,
+      path: filePath,
+      message: `Data berhasil diexport ke CSV (${allData.length} rows)`
+    }
+  } catch (err) {
+    console.error('Export CSV error:', err)
+    return { success: false, message: err.message || 'Gagal export ke CSV' }
+  }
+})
+
+/**
+ * 📊 EXPORT TO EXCEL (XLSX)
+ */
+// electron/ipc/database.js - Bagian exportExcel yang sudah diperbaiki total
+
+ipcMain.handle('database:exportExcel', async (_, options = {}) => {
+  try {
+    const db = getDb()
+
+    // Tentukan table export
+    const tables = []
+
+    if (options.includeProducts) {
+      tables.push({ name: 'products' })
+    }
+
+    if (options.includeTransactions) {
+      tables.push({ name: 'transactions' })
+    }
+
+    if (options.includeTransactionItems) {
+      tables.push({ name: 'transaction_items' })
+    }
+
+    if (tables.length === 0) {
+      return {
+        success: false,
+        message: 'Tidak ada data yang dipilih untuk export'
+      }
+    }
+
+    const { filePath } = await dialog.showSaveDialog({
+      title: 'Export to Excel',
+      defaultPath: `export-database-${Date.now()}.xlsx`,
+      filters: [
+        {
+          name: 'Excel File',
+          extensions: ['xlsx']
+        }
+      ]
+    })
+
+    if (!filePath) {
+      return {
+        success: false,
+        message: 'Export dibatalkan'
+      }
+    }
+
+    const workbook = XLSX.utils.book_new()
+
+    // ==========================================
+    // FUNGSI FORMAT TANGGAL YANG SUPER LENGKAP
+    // ==========================================
+    const formatToIndonesianDate = (value) => {
+      if (value === null || value === undefined || value === '') {
+        return ''
+      }
+
+      let date = null
+
+      // 1. Jika sudah dalam format string ISO atau datetime
+      if (typeof value === 'string') {
+        // Coba parse langsung
+        date = new Date(value)
+
+        // Jika gagal, coba format "YYYY-MM-DD HH:MM:SS"
+        if (isNaN(date.getTime())) {
+          const parts = value.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})/)
+          if (parts) {
+            date = new Date(parts[1], parts[2] - 1, parts[3], parts[4], parts[5], parts[6])
+          }
+        }
+      }
+
+      // 2. Coba sebagai Unix timestamp (angka)
+      if (!date || isNaN(date.getTime())) {
+        if (typeof value === 'number' || (typeof value === 'string' && /^\d+$/.test(value))) {
+          const num = Number(value)
+          const len = String(num).length
+
+          if (len === 10) {
+            // Unix timestamp detik
+            date = new Date(num * 1000)
+          } else if (len === 13) {
+            // Unix timestamp milidetik
+            date = new Date(num)
+          }
+        }
+      }
+
+      // 3. Jika masih gagal, coba berbagai format lain
+      if (!date || isNaN(date.getTime())) {
+        if (typeof value === 'string') {
+          // Coba format "DD/MM/YYYY"
+          const parts = value.split('/')
+          if (parts.length === 3) {
+            date = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`)
+          }
+
+          // Coba format "DD-MM-YYYY"
+          if (isNaN(date.getTime())) {
+            const partsDash = value.split('-')
+            if (partsDash.length === 3 && partsDash[0].length === 2) {
+              date = new Date(`${partsDash[2]}-${partsDash[1]}-${partsDash[0]}`)
+            }
+          }
+        }
+      }
+
+      // 4. Format ke bahasa Indonesia jika berhasil
+      if (date && !isNaN(date.getTime())) {
+        const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']
+        const months = [
+          'Januari',
+          'Februari',
+          'Maret',
+          'April',
+          'Mei',
+          'Juni',
+          'Juli',
+          'Agustus',
+          'September',
+          'Oktober',
+          'November',
+          'Desember'
+        ]
+
+        const dayName = days[date.getDay()]
+        const day = date.getDate()
+        const month = months[date.getMonth()]
+        const year = date.getFullYear()
+        const hours = String(date.getHours()).padStart(2, '0')
+        const minutes = String(date.getMinutes()).padStart(2, '0')
+        const seconds = String(date.getSeconds()).padStart(2, '0')
+
+        // Format: Selasa, 02 Januari 2025 14:30:45
+        return `${dayName}, ${day} ${month} ${year} ${hours}:${minutes}:${seconds}`
+      }
+
+      // 5. Jika tidak bisa diparse, kembalikan asli
+      return value
+    }
+
+    // Loop semua table
+    for (const table of tables) {
+      let query = `SELECT * FROM ${table.name}`
+      const params = []
+
+      // Filter tanggal untuk transaksi
+      if (
+        ['transactions', 'transaction_items'].includes(table.name) &&
+        options.dateFrom &&
+        options.dateTo
+      ) {
+        if (table.name === 'transaction_items') {
+          query = `
+            SELECT ti.*
+            FROM transaction_items ti
+            JOIN transactions t
+              ON t.id = ti.transaction_id
+            WHERE date(t.created_at) BETWEEN ? AND ?
+          `
+        } else {
+          // Perbaikan filter untuk format datetime
+          query += `
+            WHERE date(created_at) BETWEEN ? AND ?
+          `
+        }
+        params.push(options.dateFrom, options.dateTo)
+      }
+
+      const data = await db.all(query, params)
+
+      // Format semua data dengan format tanggal Indonesia
+      const formattedData = data.map((row) => {
+        const newRow = {}
+
+        Object.keys(row).forEach((key) => {
+          let value = row[key]
+
+          // Kolom yang berhubungan dengan tanggal/waktu
+          const dateKeywords = [
+            'created_at',
+            'updated_at',
+            'deleted_at',
+            'date',
+            'transaction_date',
+            'due_date',
+            'paid_at',
+            'modified_at',
+            'birthdate',
+            'birthday'
+          ]
+
+          const isDateColumn = dateKeywords.some((keyword) => key.toLowerCase().includes(keyword))
+
+          if (isDateColumn && value !== null && value !== undefined && value !== '') {
+            // Format tanggal
+            newRow[key] = formatToIndonesianDate(value)
+          } else if (value === null) {
+            newRow[key] = ''
+          } else if (typeof value === 'number') {
+            // Format currency untuk kolom tertentu
+            if (
+              key === 'total' ||
+              key === 'paid' ||
+              key === 'change' ||
+              key === 'price' ||
+              key === 'subtotal'
+            ) {
+              newRow[key] = `Rp ${value.toLocaleString('id-ID')}`
+            } else {
+              newRow[key] = value
+            }
+          } else {
+            newRow[key] = value
+          }
+        })
+
+        return newRow
+      })
+
+      // Buat worksheet
+      const worksheet =
+        formattedData.length > 0
+          ? XLSX.utils.json_to_sheet(formattedData)
+          : XLSX.utils.json_to_sheet([])
+
+      // Auto width columns
+      if (formattedData.length > 0) {
+        worksheet['!cols'] = Object.keys(formattedData[0]).map((key) => {
+          let maxLength = key.length
+
+          formattedData.forEach((row) => {
+            if (row[key]) {
+              const valueLength = String(row[key]).length
+              maxLength = Math.max(maxLength, valueLength)
+            }
+          })
+
+          return {
+            wch: Math.min(maxLength + 2, 50)
+          }
+        })
+      }
+
+      // Freeze header
+      worksheet['!freeze'] = {
+        xSplit: 0,
+        ySplit: 1
+      }
+
+      XLSX.utils.book_append_sheet(workbook, worksheet, table.name.slice(0, 31))
+    }
+
+    XLSX.writeFile(workbook, filePath)
+
+    return {
+      success: true,
+      path: filePath,
+      message: `Berhasil export ${tables.length} table ke Excel`
+    }
+  } catch (err) {
+    console.error('Export Excel error:', err)
+    return {
+      success: false,
+      message: err.message || 'Gagal export ke Excel'
+    }
+  }
+})
+
+function convertToCSV(data) {
+  if (!data || data.length === 0) return ''
+
+  const headers = Object.keys(data[0])
+  const csvRows = []
+
+  // Add headers
+  csvRows.push(headers.join(','))
+
+  // Add data rows
+  for (const row of data) {
+    const values = headers.map((header) => {
+      let value = row[header]
+
+      // Handle different data types
+      if (value === null || value === undefined) {
+        return ''
+      }
+
+      if (typeof value === 'object') {
+        value = JSON.stringify(value)
+      }
+
+      // Escape quotes and wrap in quotes if contains comma or newline
+      if (typeof value === 'string') {
+        value = value.replace(/"/g, '""')
+        if (value.includes(',') || value.includes('\n') || value.includes('"')) {
+          value = `"${value}"`
+        }
+      }
+
+      return value
+    })
+
+    csvRows.push(values.join(','))
+  }
+
+  return csvRows.join('\n')
+}

@@ -11,7 +11,8 @@ import {
   TrashIcon,
   SparklesIcon,
   DocumentArrowDownIcon,
-  ArrowUturnLeftIcon
+  ArrowUturnLeftIcon,
+  TableCellsIcon
 } from '@heroicons/react/24/outline'
 
 export default function SettingsBackupPage() {
@@ -21,10 +22,19 @@ export default function SettingsBackupPage() {
   const [loadingVacuum, setLoadingVacuum] = useState(false)
   const [loadingExport, setLoadingExport] = useState(false)
   const [loadingReset, setLoadingReset] = useState(false)
+  const [loadingExcel, setLoadingExcel] = useState(false)
   const [message, setMessage] = useState(null)
   const [dbInfo, setDbInfo] = useState(null)
   const [showResetModal, setShowResetModal] = useState(false)
   const [confirmText, setConfirmText] = useState('')
+  const [showExcelModal, setShowExcelModal] = useState(false)
+  const [excelOptions, setExcelOptions] = useState({
+    includeProducts: true,
+    includeTransactions: true,
+    includeTransactionItems: true,
+    dateFrom: '',
+    dateTo: ''
+  })
 
   useEffect(() => {
     loadDatabaseInfo()
@@ -64,6 +74,34 @@ export default function SettingsBackupPage() {
       showMessage(err.message, 'error')
     } finally {
       setLoadingBackup(false)
+    }
+  }
+
+  const handleExportToExcel = async () => {
+    try {
+      setLoadingExcel(true)
+
+      // Langsung kirim excelOptions karena struktur key-nya sudah sesuai
+      // dengan yang diekspektasikan oleh ipcMain
+      const res = await window.api.database.exportToExcel(excelOptions)
+
+      if (!res.success) throw new Error(res.message || 'Export ke Excel gagal')
+
+      showMessage(res.message || 'Data berhasil diexport ke Excel', 'success')
+      setShowExcelModal(false)
+
+      // Reset options
+      setExcelOptions({
+        includeProducts: true,
+        includeTransactions: true,
+        includeTransactionItems: true,
+        dateFrom: '',
+        dateTo: ''
+      })
+    } catch (error) {
+      showMessage(error.message, 'error')
+    } finally {
+      setLoadingExcel(false)
     }
   }
 
@@ -125,12 +163,10 @@ export default function SettingsBackupPage() {
     }
   }
 
-  // Hanya buka modal — tidak ada confirm/prompt di sini
   const handleResetDatabase = () => {
     setShowResetModal(true)
   }
 
-  // Semua logika reset ada di sini, dipanggil dari tombol modal
   const handleConfirmReset = async () => {
     try {
       setLoadingReset(true)
@@ -249,6 +285,127 @@ export default function SettingsBackupPage() {
             >
               {message.text}
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* Excel Export Modal */}
+      {showExcelModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="w-full max-w-md rounded-2xl bg-zinc-900 border border-white/10 p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <TableCellsIcon className="w-6 h-6 text-green-400" />
+              <h2 className="text-xl font-bold text-white">Export ke Excel</h2>
+            </div>
+
+            <p className="text-white/70 text-sm mb-4">
+              Pilih data yang ingin diexport ke file Excel (.xlsx)
+            </p>
+
+            <div className="space-y-3 mb-4">
+              <label className="flex items-center gap-3 text-white/80">
+                <input
+                  type="checkbox"
+                  checked={excelOptions.includeProducts}
+                  onChange={(e) =>
+                    setExcelOptions({ ...excelOptions, includeProducts: e.target.checked })
+                  }
+                  className="w-4 h-4 rounded border-white/20 bg-black/30"
+                />
+                <span>Data Produk</span>
+              </label>
+
+              <label className="flex items-center gap-3 text-white/80">
+                <input
+                  type="checkbox"
+                  checked={excelOptions.includeTransactions}
+                  onChange={(e) =>
+                    setExcelOptions({ ...excelOptions, includeTransactions: e.target.checked })
+                  }
+                  className="w-4 h-4 rounded border-white/20 bg-black/30"
+                />
+                <span>Data Transaksi</span>
+              </label>
+
+              <label className="flex items-center gap-3 text-white/80">
+                <input
+                  type="checkbox"
+                  checked={excelOptions.includeTransactionItems}
+                  onChange={(e) =>
+                    setExcelOptions({ ...excelOptions, includeTransactionItems: e.target.checked })
+                  }
+                  className="w-4 h-4 rounded border-white/20 bg-black/30"
+                />
+                <span>Detail Item Transaksi</span>
+              </label>
+            </div>
+
+            <div className="border-t border-white/10 my-4"></div>
+
+            <div className="space-y-3 mb-6">
+              <p className="text-white/60 text-sm">Filter berdasarkan tanggal (opsional):</p>
+
+              <div>
+                <label className="text-white/60 text-sm block mb-1">Dari tanggal</label>
+                <input
+                  type="date"
+                  value={excelOptions.dateFrom}
+                  onChange={(e) => setExcelOptions({ ...excelOptions, dateFrom: e.target.value })}
+                  className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-white outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-white/60 text-sm block mb-1">Sampai tanggal</label>
+                <input
+                  type="date"
+                  value={excelOptions.dateTo}
+                  onChange={(e) => setExcelOptions({ ...excelOptions, dateTo: e.target.value })}
+                  className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-white outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setShowExcelModal(false)
+                  setExcelOptions({
+                    includeProducts: true,
+                    includeTransactions: true,
+                    includeTransactionItems: true,
+                    dateFrom: '',
+                    dateTo: ''
+                  })
+                }}
+                className="px-4 py-2 rounded-xl bg-white/10 text-white"
+              >
+                Batal
+              </button>
+
+              <button
+                onClick={handleExportToExcel}
+                disabled={
+                  loadingExcel ||
+                  (!excelOptions.includeProducts &&
+                    !excelOptions.includeTransactions &&
+                    !excelOptions.includeTransactionItems)
+                }
+                className="px-4 py-2 rounded-xl bg-green-600 text-white disabled:opacity-40 flex items-center gap-2"
+              >
+                {loadingExcel ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    Mengexport...
+                  </>
+                ) : (
+                  <>
+                    <DocumentArrowDownIcon className="w-4 h-4" />
+                    Export Excel
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -415,6 +572,43 @@ export default function SettingsBackupPage() {
           </button>
         </div>
 
+        {/* Export Excel Card */}
+        <div className="bg-white/3 border border-white/6 rounded-3xl p-6">
+          <div className="flex items-start justify-between mb-6">
+            <div>
+              <div className="w-12 h-12 rounded-2xl bg-green-500/10 border border-green-500/20 flex items-center justify-center mb-4">
+                <TableCellsIcon className="w-6 h-6 text-green-400" />
+              </div>
+              <h2 className="text-white text-lg font-semibold">Export ke Excel</h2>
+              <p className="text-white/40 text-sm mt-1 leading-relaxed">
+                Export data ke file Excel (.xlsx) untuk analisis dan pelaporan
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-3 mb-6">
+            <div className="flex items-center gap-3 text-sm text-white/60">
+              <TableCellsIcon className="w-4 h-4 text-green-400" />
+              Format Excel dengan multiple sheets
+            </div>
+            <div className="flex items-center gap-3 text-sm text-white/60">
+              <FolderOpenIcon className="w-4 h-4 text-green-400" />
+              Bisa filter data berdasarkan tanggal
+            </div>
+            <div className="flex items-center gap-3 text-sm text-white/60">
+              <CheckCircleIcon className="w-4 h-4 text-green-400" />
+              Pilih tabel yang ingin diexport
+            </div>
+          </div>
+
+          <button
+            onClick={() => setShowExcelModal(true)}
+            className="w-full h-12 rounded-2xl bg-green-500 hover:bg-green-400 transition-all text-white font-medium"
+          >
+            Export ke Excel
+          </button>
+        </div>
+
         {/* Export SQL Card */}
         <div className="bg-white/3 border border-white/6 rounded-3xl p-6">
           <div className="flex items-start justify-between mb-6">
@@ -546,6 +740,20 @@ export default function SettingsBackupPage() {
                   </p>
                 </div>
                 <div>
+                  <p className="text-white/70 mb-1">📊 Export Excel</p>
+                  <p>
+                    • Export ke Excel untuk <strong className="text-white/70">analisis data</strong>
+                  </p>
+                  <p>
+                    • Bisa pilih{' '}
+                    <strong className="text-white/70">tabel yang ingin diexport</strong>
+                  </p>
+                  <p>
+                    • Filter <strong className="text-white/70">berdasarkan tanggal</strong> untuk
+                    laporan spesifik
+                  </p>
+                </div>
+                <div>
                   <p className="text-white/70 mb-1">📤 Export SQL</p>
                   <p>
                     • Export SQL untuk <strong className="text-white/70">migrasi database</strong>
@@ -572,20 +780,6 @@ export default function SettingsBackupPage() {
                   <p>
                     • Hapus transaksi lama untuk{' '}
                     <strong className="text-white/70">menjaga performa</strong>
-                  </p>
-                </div>
-                <div>
-                  <p className="text-white/70 mb-1">⚠️ Peringatan</p>
-                  <p>
-                    • Restore akan <strong className="text-amber-300">menimpa data saat ini</strong>
-                  </p>
-                  <p>
-                    • Reset bersifat <strong className="text-red-300">permanen</strong> dan tidak
-                    bisa dibatalkan
-                  </p>
-                  <p>
-                    • Selalu backup sebelum{' '}
-                    <strong className="text-red-300">reset atau restore</strong>
                   </p>
                 </div>
               </div>

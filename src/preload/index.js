@@ -36,7 +36,9 @@ if (process.contextIsolated) {
         vacuum: () => ipcRenderer.invoke('database:vacuum'),
         checkIntegrity: () => ipcRenderer.invoke('database:checkIntegrity'),
         getStatistics: () => ipcRenderer.invoke('database:getStatistics'),
-        exportSql: () => ipcRenderer.invoke('database:exportSql')
+        exportSql: () => ipcRenderer.invoke('database:exportSql'),
+        exportToExcel: (options) => ipcRenderer.invoke('database:exportExcel', options),
+        exportToCsv: () => ipcRenderer.invoke('database:exportCsv')
       }
     })
   } catch (error) {
